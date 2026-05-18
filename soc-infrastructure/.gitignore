@@ -1,14 +1,39 @@
-# Local secrets and SSH material
+# Fichiers de secrets et mots de passe
+# Ne JAMAIS commiter le fichier contenant le mot de passe du coffre-fort.
+.vault_pass
+*.vault_pass
+*.vault
+secrets.yml
 *.pem
 *.key
 id_rsa
 id_ed25519
 
-# Ansible/runtime artifacts
+# Fichiers temporaires et logs d'Ansible
 *.retry
 logs/
 *.log
+ansible.log
+last_play.log
+
+# Fichiers de configuration locaux
+ansible.cfg
+
+# Dépendances téléchargées (rôles/collections)
+# Celles-ci doivent être gérées via requirements.yml
+# collections/
+# roles/
 
 # Python caches
 __pycache__/
 *.pyc
+
+# Fichiers spécifiques à l'IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Fichiers spécifiques au système d'exploitation
+.DS_Store
+Thumbs.db

@@ -2,3 +2,56 @@
 - name: Placeholder task for Wazuh manager deployment
   ansible.builtin.debug:
     msg: "wazuh-manager role scaffold ready"
+
+---
+# 1. Installation des prérequis de sécurité
+- name: Installer les dépendances APT
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - gnupg
+    state: present
+    update_cache: yes
+
+# 2. Garantie d'intégrité de la source
+- name: Importer la clé GPG officielle de Wazuh
+  ansible.builtin.apt_key:
+    url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+    state: present
+
+# 3. Ajout du dépôt logiciel
+- name: Ajouter le dépôt APT Wazuh version 4.x
+  ansible.builtin.apt_repository:
+    repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+    state: present
+    filename: wazuh
+
+# 4. (Optionnel) Mise à jour du cache APT après ajout du dépôt
+- name: Mettre à jour le cache APT
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+# 5. Installation du manager Wazuh
+- name: Installer le paquet wazuh-manager
+  ansible.builtin.apt:
+    name: wazuh-manager
+    state: present
+
+# 6. Déploiement de la configuration
+- name: Déployer la configuration ossec.conf
+  ansible.builtin.template:
+    src: ossec.conf.j2
+    dest: /var/ossec/etc/ossec.conf
+    owner: root
+    group: ossec
+    mode: '0640'
+  notify: restart wazuh-manager
+
+# 7. Démarrage et activation du service
+- name: S'assurer que le service wazuh-manager est démarré et activé
+  ansible.builtin.systemd:
+    name: wazuh-manager
+    state: started
+    enabled: yes
+

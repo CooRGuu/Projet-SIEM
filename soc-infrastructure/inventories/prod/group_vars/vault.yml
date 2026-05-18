@@ -1,0 +1,5 @@
+# Ce fichier contiendra les secrets chiffrés pour l'environnement de production.
+# Utilisez 'ansible-vault edit' pour le modifier.
+# Exemple de variables à chiffrer :
+# admin_password: "..."
+# api_credentials: "..."

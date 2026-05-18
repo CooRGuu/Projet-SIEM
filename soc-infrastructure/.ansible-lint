@@ -1,0 +1,24 @@
+---
+# Configuration pour ansible-lint
+# Documentation : https://ansible-lint.readthedocs.io/en/latest/configuring/
+
+# Exclure les dépendances externes de l'analyse pour ne pas avoir de bruit.
+exclude_paths:
+  - .venv/
+  - collections/  # Géré par requirements.yml
+  - roles/        # Géré par requirements.yml
+
+# Liste des règles à ignorer. À utiliser avec parcimonie.
+# On commence avec une liste vide. On ajoutera des règles si on a une bonne raison.
+skip_list: []
+
+# Activer des vérifications optionnelles qui forcent les bonnes pratiques.
+warn_list:
+  - "fqcn-builtins"  # Force l'utilisation des noms complets (FQCN), ex: ansible.builtin.apt au lieu de apt.
+  - "unnamed-task"   # S'assure que chaque tâche a un nom.
+
+# Rendre le linter plus strict sur certains points.
+# Par exemple, on pourrait exiger que les noms de tâches commencent par une majuscule.
+# rules:
+#   name-should-be-capitalized:
+#     enabled: true

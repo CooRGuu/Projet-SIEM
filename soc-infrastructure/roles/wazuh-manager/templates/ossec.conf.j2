@@ -2,4 +2,19 @@
   <global>
     <jsonout_output>yes</jsonout_output>
   </global>
+
+  <cluster>
+    <name>wazuh</name>
+    <node_name>wazuh-manager-lab</node_name>
+    <node_type>master</node_type>
+    <key>{{ wazuh_cluster_key }}</key>
+    <port>1516</port>
+    <bind_addr>0.0.0.0</bind_addr>
+    <nodes>
+        <!-- L'adresse IP du manager sera ajoutée ici, potentiellement via une autre variable -->
+        <node>127.0.0.1</node>
+    </nodes>
+    <hidden>no</hidden>
+    <disabled>no</disabled>
+  </cluster>
 </ossec_config>

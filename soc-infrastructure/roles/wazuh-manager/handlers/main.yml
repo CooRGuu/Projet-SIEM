@@ -1,4 +1,8 @@
 ---
-- name: Restart wazuh-manager
-  ansible.builtin.debug:
-    msg: "handler scaffold: restart wazuh-manager"
+# Handlers pour le rôle wazuh-manager
+- name: restart wazuh-manager
+  ansible.builtin.systemd:
+    name: wazuh-manager
+    state: restarted
+    daemon_reload: yes
+  listen: "restart wazuh-manager"

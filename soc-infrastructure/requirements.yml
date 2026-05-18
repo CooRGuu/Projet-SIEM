@@ -1,0 +1,17 @@
+# Ce fichier déclare les collections et rôles Ansible externes nécessaires pour ce projet.
+# Pour installer les dépendances listées ici, utilisez la commande :
+# ansible-galaxy install -r requirements.yml
+
+# collections:
+#   # Exemple : Collection pour interagir avec Proxmox VE
+#   - name: community.general
+#     version: ">=6.0.0"
+#
+#   # Exemple : Collection pour gérer des firewalls
+#   - name: ansible.posix
+#     version: "1.5.4"
+
+# roles:
+#   # Exemple : Rôle externe pour configurer un serveur web
+#   - name: geerlingguy.nginx
+#     version: "3.2.0"

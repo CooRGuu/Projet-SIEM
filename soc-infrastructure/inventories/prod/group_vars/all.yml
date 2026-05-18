@@ -1,0 +1,5 @@
+# Fichier de variables communes pour l'environnement de production.
+# Les variables non-sensibles spécifiques à la production seront définies ici.
+# Exemple :
+# wazuh_version: "4.7.4"
+# indexer_jvm_heap: "8g"
