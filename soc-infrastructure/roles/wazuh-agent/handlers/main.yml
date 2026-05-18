@@ -1,0 +1,4 @@
+---
+- name: Restart wazuh-agent
+  ansible.builtin.debug:
+    msg: "handler scaffold: restart wazuh-agent"

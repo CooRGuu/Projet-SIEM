@@ -1,0 +1,6 @@
+---
+- name: Deploy Wazuh agents on Linux
+  hosts: wazuh_agents_linux
+  become: true
+  roles:
+    - wazuh-agent

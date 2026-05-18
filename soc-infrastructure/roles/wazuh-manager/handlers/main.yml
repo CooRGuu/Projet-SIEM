@@ -1,0 +1,4 @@
+---
+- name: Restart wazuh-manager
+  ansible.builtin.debug:
+    msg: "handler scaffold: restart wazuh-manager"
