@@ -1,0 +1,6 @@
+---
+- name: Deploy Wazuh manager
+  hosts: wazuh_manager
+  become: true
+  roles:
+    - wazuh-manager

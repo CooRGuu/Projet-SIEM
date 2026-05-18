@@ -1,0 +1,6 @@
+wazuh_manager_ip: "192.168.10.5"
+wazuh_api_port: "55000"
+
+# Mapping vers le Vault
+wazuh_api_password: "{{ vault_wazuh_api_password }}"
+elastic_admin_password: "{{ vault_elastic_admin_password }}"

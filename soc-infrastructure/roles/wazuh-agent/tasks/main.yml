@@ -1,0 +1,4 @@
+---
+- name: Placeholder task for Wazuh agent deployment
+  ansible.builtin.debug:
+    msg: "wazuh-agent role scaffold ready"
