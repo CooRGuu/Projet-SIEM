@@ -1,59 +1,181 @@
 ---
-# 0. Installation des certificats de base
-- name: Installer les certificats CA pour la validation SSL/TLS
-  ansible.builtin.apt:
-    name: ca-certificates
-    state: present
-    update_cache: yes
-
-# 1. Installation des prérequis de sécurité
-- name: Installer les dépendances APT
-  ansible.builtin.apt:
-    name:
-      - apt-transport-https
-      - gnupg
-    state: present
-
-
-# 2. Garantie d'intégrité de la source
-- name: Importer la clé GPG officielle de Wazuh
-  ansible.builtin.apt_key:
-    url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
-    state: present
-
-# 3. Ajout du dépôt logiciel
-- name: Ajouter le dépôt APT Wazuh version 4.x
-  ansible.builtin.apt_repository:
-    repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
-    state: present
-    filename: wazuh
-
-# 4. (Optionnel) Mise à jour du cache APT après ajout du dépôt
-- name: Mettre à jour le cache APT
-  ansible.builtin.apt:
-    update_cache: yes
-    cache_valid_time: 3600
-
-# 5. Installation du manager Wazuh
-- name: Installer le paquet wazuh-manager
+- name: (Manager) Installer le composant principal wazuh-manager
   ansible.builtin.apt:
     name: wazuh-manager
     state: present
 
-# 6. Déploiement de la configuration
-- name: Déployer la configuration ossec.conf
+- name: (Manager) Installer les utilitaires système manquants (netstat)
+  ansible.builtin.apt:
+    name: net-tools
+    state: present
+
+- name: (Manager) Installer Filebeat
+  ansible.builtin.apt:
+    name: filebeat
+    state: present
+
+- name: (Manager) Configurer le module Wazuh pour Filebeat
+  ansible.builtin.unarchive:
+    src: https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.5.tar.gz
+    dest: /usr/share/filebeat/module/
+    remote_src: yes
+
+- name: (Manager) Créer le dossier des certificats Filebeat
+  ansible.builtin.file:
+    path: /etc/filebeat/certs
+    state: directory
+    mode: '0500'
+
+- name: (Manager) Déployer les certificats TLS pour Filebeat
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/filebeat/certs/{{ item }}"
+    mode: '0400'
+  loop:
+    - root-ca.pem
+    - wazuh-server.pem
+    - wazuh-server-key.pem
+  notify: restart filebeat
+
+- name: (Manager) Déployer la configuration filebeat.yml
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    mode: '0640'
+  notify: restart filebeat
+
+- name: (Manager) Créer le dossier des certificats natifs du Manager
+  ansible.builtin.file:
+    path: /var/ossec/etc/certs
+    state: directory
+    owner: wazuh
+    group: wazuh
+    mode: '0750'
+
+- name: (Manager) Déployer le certificat CA pour le connecteur natif
+  ansible.builtin.copy:
+    src: root-ca.pem
+    dest: /var/ossec/etc/certs/root-ca.pem
+    owner: wazuh
+    group: wazuh
+    mode: '0644'
+  notify: restart wazuh-manager
+
+- name: (Manager) Déployer la configuration ossec.conf conforme
   ansible.builtin.template:
     src: ossec.conf.j2
     dest: /var/ossec/etc/ossec.conf
     owner: root
     group: wazuh
-    mode: '0640'
+    mode: '0660'
   notify: restart wazuh-manager
 
-# 7. Démarrage et activation du service
-- name: S'assurer que le service wazuh-manager est démarré et activé
-  ansible.builtin.command: /var/ossec/bin/wazuh-control start
-  register: wazuh_start
-  changed_when: "'Starting' in wazuh_start.stdout"
-  failed_when: wazuh_start.rc != 0 and 'already running' not in wazuh_start.stdout
+- name: (Manager) Forcer l'application immédiate des redémarrages
+  ansible.builtin.meta: flush_handlers
 
+- name: (Manager) Démarrer et activer wazuh-manager
+  ansible.builtin.systemd:
+    name: wazuh-manager
+    enabled: yes
+    state: started
+
+- name: (Manager) Démarrer et activer filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    enabled: yes
+    state: started
+- name: "SecOps - Configuration de la compatibilité API OpenSearch pour Filebeat"
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:9200/_cluster/settings"
+    method: PUT
+    user: "{{ vault_wazuh_indexer_admin_user | default('admin') }}"
+    password: "{{ vault_wazuh_indexer_admin_password }}"
+    force_basic_auth: yes
+    validate_certs: no  # Accepté en Lab local, mais à passer à 'yes' en production avec la CA officielle
+    body_format: json
+    body:
+      persistent:
+        compatibility.override_main_response_version: true
+    status_code: 200
+  register: _opensearch_api_compat
+  changed_when:
+    - _opensearch_api_compat.json.persistent.compatibility is defined
+    - _opensearch_api_compat.json.persistent.compatibility.override_main_response_version == "true"
+  tags:
+    - wazuh_manager
+    - api_fix
+
+- name: "SecOps - Téléchargement du template de mapping officiel Wazuh"
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/wazuh/wazuh/v4.9.0/extensions/opensearch/1.x/wazuh-template.json"
+    dest: "/etc/filebeat/wazuh-template.json"
+    owner: root
+    group: root
+    mode: '0644'
+  tags: [filebeat, wazuh_manager]
+
+- name: "SecOps - Génération du fichier de configuration Filebeat à partir du template"
+  ansible.builtin.template:
+    src: "filebeat.yml.j2"
+    dest: "/etc/filebeat/filebeat.yml"
+    owner: root
+    group: root
+    mode: '0600'
+  notify: "Restart Filebeat"
+  tags: [filebeat, wazuh_manager]
+
+- name: "SecOps - Validation du statut et activation du service Filebeat"
+  ansible.builtin.systemd:
+    name: filebeat
+    state: started
+    enabled: yes
+  tags: [filebeat, wazuh_manager]
+- name: SecOps | Déploiement de la configuration centralisée des agents (agent.conf)
+  ansible.builtin.template:
+    src: agent.conf.j2
+    dest: /var/ossec/etc/shared/default/agent.conf
+    owner: wazuh
+    group: wazuh
+    mode: '0660'
+  notify: Restart wazuh-manager
+- name: SecOps | Attente de la disponibilité de l'API OpenSearch (Port 9200)
+  ansible.builtin.wait_for:
+    port: 9200
+    delay: 5
+    timeout: 60
+
+- name: GRC | Injection de la politique de rétention ISM (wazuh_retention_policy)
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:9200/_plugins/_ism/policies/wazuh_retention_policy"
+    method: PUT
+    user: "admin" # À remplacer par ta variable Ansible Vault en prod (ex: "{{ vault_opensearch_admin_user }}")
+    password: "admin" # À remplacer par ta variable Ansible Vault en prod (ex: "{{ vault_opensearch_admin_password }}")
+    force_basic_auth: yes
+    validate_certs: no
+    status_code: [200, 201]
+    body_format: json
+    body:
+      policy:
+        description: "Politique de rétention glissante de 7 jours pour le laboratoire Wazuh."
+        default_state: "hot"
+        states:
+          - name: "hot"
+            actions: []
+            transitions:
+              - state_name: "warm"
+                conditions:
+                  min_index_age: "2d"
+          - name: "warm"
+            actions:
+              - read_only: {}
+            transitions:
+              - state_name: "delete"
+                conditions:
+                  min_index_age: "7d"
+          - name: "delete"
+            actions:
+              - delete: {}
+            transitions: []
+        ism_template:
+          - index_patterns: ["wazuh-alerts-4.x-*"]
+            priority: 100

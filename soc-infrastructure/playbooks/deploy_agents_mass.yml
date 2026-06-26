@@ -1,0 +1,69 @@
+---
+# ==========================================
+# DEPLOYMENT SPRINT: MASS AGENT PROVISIONING
+# ==========================================
+
+# --- SECTION 1 : AGENTS LINUX (Serveurs / Postes d'étude Linux) ---
+- name: "Mass Deployment - Automated Wazuh Agent on Linux"
+  hosts: wazuh_agents_linux
+  become: yes
+  vars_files:
+    - ../vars/vault.yml
+  tasks:
+    - name: "Linux | Importation de la clé GPG officielle Wazuh"
+      ansible.builtin.apt_key:
+        url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+        state: present
+
+    - name: "Linux | Déclaration du dépôt APT stable 4.x"
+      ansible.builtin.apt_repository:
+        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        state: present
+        filename: wazuh
+
+    - name: "Linux | Installation silencieuse du paquet wazuh-agent"
+      ansible.builtin.apt:
+        name: wazuh-agent
+        state: present
+        update_cache: yes
+
+    - name: "Linux | Configuration de l'adresse du Manager de l'école"
+      ansible.builtin.lineinfile:
+        path: /var/ossec/etc/ossec.conf
+        regexp: '<manager><address>.*</address>'
+        line: "    <manager><address>{{ wazuh_manager_production_ip }}</address>"
+      notify: Restart Linux Wazuh Agent
+
+  handlers:
+    - name: Restart Linux Wazuh Agent
+      ansible.builtin.systemd:
+        name: wazuh-agent
+        state: restarted
+        enabled: yes
+
+# --- SECTION 2 : AGENTS WINDOWS (Postes de travail de l'école) ---
+- name: "Mass Deployment - Automated Wazuh Agent on Windows"
+  hosts: wazuh_agents_windows
+  vars_files:
+    - ../vars/vault.yml
+  tasks:
+    - name: "Windows | Téléchargement et Installation silencieuse de l'agent (MSI)"
+      ansible.windows.win_package:
+        path: "https://packages.wazuh.com/4.x/windows/wazuh-agent-4.9.0-1.msi"
+        product_id: "{Wazuh Agent}" # Ansible vérifie la présence via ce GUID pour l'idempotence
+        arguments: '/q WAZUH_MANAGER="{{ wazuh_manager_production_ip }}" WAZUH_REGISTRATION_SERVER="{{ wazuh_manager_production_ip }}"'
+        state: present
+
+    - name: "Windows | Durcissement - Désactivation de l'auto-enrôlement cyclique"
+      community.windows.win_lineinfile:
+        path: 'C:\\Program Files (x86)\ossec-agent\ossec.conf'
+        regexp: '<enrollment><enabled>yes</enabled>'
+        line: '    <enrollment><enabled>no</enabled>'
+      notify: Restart Windows Wazuh Agent
+
+  handlers:
+    - name: Restart Windows Wazuh Agent
+      ansible.windows.win_service:
+        name: "Wazuh"
+        state: restarted
+        start_mode: auto

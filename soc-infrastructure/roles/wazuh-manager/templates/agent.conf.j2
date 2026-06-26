@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+<agent_config os="Windows">
+  <sca>
+    <enabled>yes</enabled>
+    <scan_on_start>yes</scan_on_start>
+    <interval>12h</interval>
+    <policies>
+      <policy>cis_win11_enterprise.yml</policy>
+    </policies>
+  </sca>
+
+  <localfile>
+    <location>Security</location>
+    <log_format>eventchannel</log_format>
+    <query>Event/System[EventID != 4624]</query>
+  </localfile>
+</agent_config>
+
+<agent_config os="Linux">
+  <sca>
+    <enabled>yes</enabled>
+    <scan_on_start>yes</scan_on_start>
+    <interval>12h</interval>
+    <policies>
+      <policy>cis_debian11_v1.0.0.yml</policy>
+    </policies>
+  </sca>
+</agent_config>

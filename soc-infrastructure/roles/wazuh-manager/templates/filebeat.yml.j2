@@ -1,0 +1,23 @@
+filebeat.modules:
+  - module: wazuh
+    alerts:
+      enabled: true
+    archives:
+      enabled: false
+
+output.elasticsearch:
+  hosts: ["{{ wazuh_indexer_host | default('127.0.0.1') }}:9200"]
+  protocol: https
+  username: "{{ vault_wazuh_indexer_admin_user | default('admin') }}"
+  password: "{{ vault_wazuh_indexer_admin_password }}"
+  ssl.certificate_authorities: ["/etc/filebeat/certs/root-ca.pem"]
+  ssl.certificate: "/etc/filebeat/certs/wazuh-server.pem"
+  ssl.key: "/etc/filebeat/certs/wazuh-server-key.pem"
+  indices:
+    - index: "wazuh-alerts-4.x-%{+yyyy.MM.dd}"
+
+setup.template.json.enabled: true
+setup.template.json.path: '/etc/filebeat/wazuh-template.json'
+setup.template.json.name: 'wazuh'
+setup.template.pattern: 'wazuh-*'
+setup.ilm.enabled: false
