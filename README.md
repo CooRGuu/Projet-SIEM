@@ -1,101 +1,99 @@
-# Projet de Déploiement d'un SOC avec Ansible
+# 🛡️ Projet de Déploiement d'un SOC avec Wazuh & Ansible
 
-Ce projet contient l'infrastructure as code (IaC) pour déployer un SIEM basé sur Wazuh en utilisant Ansible. Il est conçu pour être déployé dans un environnement de laboratoire (`lab`) et facilement adaptable à un environnement de production (`prod`) grâce à des inventaires et des variables séparés.
+Ce dépôt contient l'infrastructure-as-code (IaC), les scripts de déploiement sécurisés, et l'ensemble de la documentation d'architecture pour le déploiement d'un **SOC (Security Operations Center)** basé sur le SIEM **Wazuh** dans un réseau d'établissement d'enseignement.
 
-## Prérequis
+Il couvre le déploiement du **Manager Wazuh** (via Ansible), l'enrôlement de masse des **agents Windows** (via GPO/Active Directory avec durcissement de sécurité), ainsi que les audits réglementaires associés.
 
-- **Ansible:** Version 2.12+
-- **Python:** Version 3.8+
-- **Git:** Pour cloner le projet.
-- **Accès SSH** aux machines cibles avec des clés SSH (recommandé).
+---
 
-## Structure du Projet
+## 📂 Structure du Projet
 
-```
+```text
 Projet-SIEM/
-├── README.md               # Ce fichier
-└── soc-infrastructure/
-    ├── .ansible-lint       # Configuration du linter pour la qualité du code
-    ├── .gitignore          # Fichiers à ignorer par Git (TRÈS IMPORTANT)
-    ├── ansible.cfg         # Configuration générale d'Ansible
+├── README.md                           # Ce fichier de présentation générale
+├── config/                             # Configurations spécifiques hors Ansible-Galaxy
+│   ├── ansible/
+│   │   └── deploy_wazuh_manager.yml    # Playbook de déploiement de production autonome
+│   └── wazuh-manager/
+│       └── custom_wazuh_rules.xml      # Règles de détection personnalisées (MITRE ATT&CK)
+├── docs/                               # Livrables, demandes et guides d'intégration
+│   ├── demandes/
+│   │   ├── fiche_demande_active_directory.html # Fiche de demande de droits AD
+│   │   ├── fiche_demande_proxfibre.html        # Fiche réseau/infra ProxFibre
+│   │   └── mail_tuteur_stage.txt       # Modèle d'email d'accompagnement
+│   ├── audit/
+│   │   ├── audit_conformite_referentiels.html  # Alignement ANSSI, NIST, ISO 27001
+│   │   └── attack_playbooks_and_detection_matrix.html # Scénarios d'attaque et matrice de détection
+│   └── guides/
+│       ├── gpo_deployment_guide.html   # Guide technique complet pour l'admin AD
+│       └── document_suivi_projet.html  # Journal d'avancement du projet
+├── scripts/                            # Scripts opérationnels (Windows & Linux)
+│   ├── windows/
+│   │   ├── Deploy-WazuhAgent.ps1       # Script d'installation GPO (idempotent, DPAPI, SHA256)
+│   │   ├── Initialize-WazuhDeployCredential.ps1 # Chiffrement local du jeton API (DPAPI)
+│   │   └── Rotate-WazuhApiPassword.ps1 # Script de rotation du mot de passe de l'API Wazuh
+│   └── linux/
+│       └── wazuh-health-monitor.sh     # Script de monitoring du Manager Wazuh (Syslog/Email)
+└── soc-infrastructure/                 # Rôles et playbooks Ansible structurés (Lab / Prod)
+    ├── ansible.cfg                     # Paramétrages globaux Ansible
     ├── inventories/
-    │   ├── lab/            # Environnement de Laboratoire
+    │   ├── lab/                        # Environnement de test local (Vagrant / Proxmox)
     │   │   ├── hosts.ini
     │   │   └── group_vars/
     │   │       ├── all.yml
-    │   │       └── vault.yml
-    │   └── prod/           # Environnement de Production
+    │   │       └── vault.yml           # Secrets chiffrés pour le Lab
+    │   └── prod/                       # Environnement de production réelle (ProxFibre)
     │       ├── hosts.ini
     │       └── group_vars/
-    │           ├── all.yml
-    │           └── vault.yml
-    ├── playbooks/
-    │   └── deploy_manager.yml
-    ├── requirements.yml    # Dépendances externes (collections/rôles Ansible)
-    └── roles/
-        └── wazuh-manager/  # Rôle pour déployer le manager Wazuh
 ```
 
-## Guide de Démarrage Rapide
+---
+
+## 🚀 Composants Principaux & Sécurité
+
+### 1. Déploiement Windows durci (GPO & PowerShell)
+Le script `Deploy-WazuhAgent.ps1` (dans `scripts/windows/`) est conçu pour être exécuté en script de démarrage de machine (contexte `NT AUTHORITY\SYSTEM`). Il intègre des mesures de sécurité conformes aux recommandations de l'ANSSI :
+* **Chiffrement DPAPI :** Le mot de passe ou jeton API pour l'enrôlement n'est pas stocké en clair. Il est pré-chiffré via le script `Initialize-WazuhDeployCredential.ps1` en contexte machine pour que seul le compte `SYSTEM` local de la machine cible puisse le déchiffrer.
+* **Vérification d'intégrité :** Le script calcule l'empreinte SHA-256 du binaire d'installation MSI de l'agent et la compare à une empreinte de confiance avant de lancer l'installation.
+* **Contrôle d'accès (ACL) :** Les clés cryptographiques stockées localement (`client.keys`) ont des permissions restreintes (seuls `SYSTEM` et `Administrators` y ont accès).
+* **Idempotence :** Le script détecte si l'agent est déjà présent et opérationnel, et interrompt son exécution s'il n'y a rien à faire pour préserver les ressources.
+
+### 2. Supervision du Manager (Linux)
+Le script `wazuh-health-monitor.sh` (dans `scripts/linux/`) surveille l'état du manager Wazuh et envoie des alertes critiques (via Syslog ou alertes e-mail configurées) si le service manager ou l'API tombe, ou si les certificats TLS de communication approchent de leur date d'expiration (alertes à 90, 30 et 7 jours).
+
+### 3. Matrice de conformité et détection
+Les documents dans `docs/audit/` cartographient l'infrastructure SOC par rapport aux exigences réglementaires et décrivent les scénarios de test (tels que la détection de création d'utilisateurs suspects, d'exécution de scripts PowerShell encodés ou d'attaques par force brute sur Active Directory).
+
+---
+
+## 🛠️ Guide de Démarrage Rapide
 
 ### 1. Installation des dépendances Ansible
-
-Si le projet utilise des collections ou des rôles externes, installez-les avec `ansible-galaxy`.
-
+Depuis la machine d'administration Linux :
 ```bash
 cd soc-infrastructure
 ansible-galaxy install -r requirements.yml
 ```
 
-### 2. Configuration du Coffre-fort (Ansible Vault)
-
-Les secrets (mots de passe, clés d'API) sont stockés de manière chiffrée dans les fichiers `vault.yml`.
-
-**a. Créer un fichier de mot de passe (Recommandé)**
-
-Pour éviter de taper le mot de passe à chaque fois, créez un fichier `.vault_pass` **à la racine du projet `Projet-SIEM` (en dehors de `soc-infrastructure`)**.
-
+### 2. Déploiement de l'infrastructure Manager
+1. Créez un fichier `.vault_pass` contenant le mot de passe du coffre-fort Ansible **à la racine du projet `Projet-SIEM/`** (le fichier est ignoré par Git).
+2. Configurez vos cibles et variables dans `soc-infrastructure/inventories/lab/` (ou `prod/`).
+3. Exécutez le playbook de déploiement :
 ```bash
-# Depuis la racine Projet-SIEM/
-echo "VOTRE_MOT_DE_PASSE_SECRET" > .vault_pass
-chmod 600 .vault_pass
-```
-**Attention :** Le fichier `.gitignore` est configuré pour ignorer `.vault_pass`. Ne le commitez jamais.
-
-**b. Créer et éditer le coffre-fort du laboratoire**
-
-```bash
-# Depuis le répertoire soc-infrastructure/
-ansible-vault create inventories/lab/group_vars/vault.yml --vault-password-file ../.vault_pass
-```
-Ajoutez-y les secrets nécessaires (ex: `wazuh_cluster_key`, `wazuh_api_password`).
-
-### 3. Configuration de l'inventaire
-
-Modifiez le fichier d'inventaire de votre environnement pour définir les machines cibles.
-
-**Pour le laboratoire :** `inventories/lab/hosts.ini`
-
-```ini
-[wazuh_manager]
-wazuh-manager-lab ansible_host=192.168.X.X ansible_user=votre_user_ssh
-```
-Remplacez `192.168.X.X` par l'IP de votre VM et `votre_user_ssh` par votre utilisateur de connexion.
-
-### 4. Lancement d'un Playbook
-
-Pour déployer le manager Wazuh dans l'environnement de laboratoire :
-
-```bash
-# Depuis le répertoire soc-infrastructure/
+# Pour le laboratoire
 ansible-playbook -i inventories/lab/hosts.ini playbooks/deploy_manager.yml --vault-password-file ../.vault_pass
 ```
 
-### 5. Analyse du code (Linting)
+### 3. Préparation du déploiement Windows (GPO)
+Pour mettre en place le déploiement automatisé sur le réseau AD de l'école :
+1. Consultez la fiche de demande AD dans `docs/demandes/fiche_demande_active_directory.html`.
+2. Générez le secret d'enrôlement chiffré sur une machine de test en contexte local `SYSTEM` (ou via le guide dans `docs/guides/gpo_deployment_guide.html`) avec le script `Initialize-WazuhDeployCredential.ps1`.
+3. Déposez `Deploy-WazuhAgent.ps1` et le binaire MSI sur votre partage de fichiers réseau (ex: `NETLOGON`).
+4. Configurez la GPO pour lancer le script au démarrage des ordinateurs.
 
-Pour vérifier la qualité et la conformité de votre code Ansible :
+---
 
-```bash
-# Depuis le répertoire soc-infrastructure/
-ansible-lint
-```
+## 🛡️ Auditing & Qualité du Code
+* **Linter Ansible :** Ce projet suit les standards de qualité définis par `ansible-lint` configuré dans `soc-infrastructure/.ansible-lint`.
+* **Conformité réglementaire :** Mappage complet des contrôles du SOC sur le guide d'hygiène informatique de l'ANSSI et les contrôles CIS v8 disponible dans `docs/audit/audit_conformite_referentiels.html`.
+
