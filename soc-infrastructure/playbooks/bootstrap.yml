@@ -1,0 +1,35 @@
+---
+- name: Bootstrap a new VM for Ansible management
+  hosts: all  # On veut que ça s'applique à n'importe quelle nouvelle machine
+  become: true
+  gather_facts: false # On ne peut pas encore collecter les "facts", Python manque peut-être
+
+  pre_tasks:
+    - name: 1. Install Python using raw shell command
+      raw: test -e /usr/bin/python3 || (apt-get update && apt-get install -y python3)
+      changed_when: false # La commande raw ne sait pas si elle a changé quelque chose
+      tags:
+        - always
+
+    - name: 2. Gather facts now that Python is installed
+      setup: # Le module 'setup' est celui qui collecte les facts
+      tags:
+        - always
+
+- name: Configure base system for Ansible
+  hosts: all
+  become: true
+
+  tasks:
+    - name: 3. Ensure sudo is installed
+      ansible.builtin.apt:
+        name: sudo
+        state: present
+
+    - name: 4. Allow a user to use sudo without a password
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: '^{{ ansible_user }}\s+ALL='
+        line: '{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL'
+        validate: 'visudo -cf %s' # Valide la syntaxe du fichier avant de sauvegarder

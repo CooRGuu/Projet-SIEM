@@ -1,0 +1,21 @@
+<!-- Fichier de configuration pour l'agent Wazuh -->
+<ossec_config>
+  <client>
+    <server>
+      <!-- L'adresse IP du manager Wazuh sera injectée ici par Ansible -->
+      <address>{{ wazuh_manager_ip | default('127.0.0.1') }}</address>
+      <port>1514</port>
+      <protocol>udp</protocol>
+    </server>
+
+    <config-profile>debian, debian11, debian12</config-profile>
+    <notify_time>10</notify_time>
+    <time-reconnect>60</time-reconnect>
+    <auto_restart>yes</auto_restart>
+    <crypto_method>aes</crypto_method>
+  </client>
+
+  <!-- Autres configurations de l'agent (surveillance de fichiers, commandes, etc.) -->
+  <!-- Ces sections peuvent être étendues plus tard -->
+
+</ossec_config>

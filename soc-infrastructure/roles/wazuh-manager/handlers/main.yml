@@ -1,8 +1,5 @@
 ---
 # Handlers pour le rôle wazuh-manager
 - name: restart wazuh-manager
-  ansible.builtin.systemd:
-    name: wazuh-manager
-    state: restarted
-    daemon_reload: yes
+  ansible.builtin.command: /var/ossec/bin/wazuh-control restart
   listen: "restart wazuh-manager"

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fiche de Demande – Responsable Active Directory</title>
+<style>
+  :root { --primary: #1a73e8; --accent: #0d47a1; --warn: #e65100; --success: #2e7d32; --bg: #f5f7fa; --card: #fff; --border: #e0e4ea; --text: #222; --muted: #666; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.65; }
+  .page { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+  .card { background: var(--card); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 35px 40px; margin-bottom: 25px; }
+  h1 { font-size: 1.7em; color: var(--accent); border-bottom: 3px solid var(--primary); padding-bottom: 12px; margin-bottom: 8px; }
+  .meta { color: var(--muted); font-size: .9em; margin-bottom: 20px; }
+  .meta span { margin-right: 18px; }
+  h2 { font-size: 1.2em; color: var(--primary); margin: 28px 0 10px; }
+  h3 { font-size: 1.05em; color: var(--accent); margin: 18px 0 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: .92em; }
+  th { background: var(--primary); color: #fff; text-align: left; padding: 9px 12px; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: #f8f9fc; }
+  .alert { background: #fff3e0; border-left: 4px solid var(--warn); padding: 12px 16px; border-radius: 5px; margin: 12px 0; font-size: .92em; }
+  .alert strong { color: var(--warn); }
+  .info { background: #e3f2fd; border-left: 4px solid var(--primary); padding: 12px 16px; border-radius: 5px; margin: 12px 0; font-size: .92em; }
+  .engage { background: #e8f5e9; border-left: 4px solid var(--success); padding: 14px 18px; border-radius: 5px; margin: 16px 0; }
+  ul, ol { margin: 8px 0 8px 22px; }
+  li { margin-bottom: 6px; }
+  code { background: #e8eaed; padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+  @media print { body { background: #fff; } .card { box-shadow: none; border: 1px solid #ddd; } }
+</style>
+</head>
+<body>
+<div class="page">
+<div class="card">
+  <h1>📋 Fiche de Demande – Responsable Active Directory</h1>
+  <div class="meta">
+    <span><strong>Projet :</strong> SOC – SIEM Wazuh</span>
+    <span><strong>Demandeur :</strong> Corentin</span>
+    <span><strong>Date :</strong> 26 juin 2026</span>
+    <span><strong>Priorité :</strong> Haute</span>
+  </div>
+
+  <h2>1. Contexte</h2>
+  <p>Je déploie un <strong>SIEM Wazuh</strong> pour superviser la sécurité du parc informatique de l'école. Le Manager est opérationnel sur ProxFibre. L'étape suivante consiste à <strong>installer automatiquement l'agent</strong> sur les postes Windows du domaine via une <strong>stratégie de groupe (GPO)</strong>.</p>
+  <div class="info">L'agent Wazuh collecte uniquement les <strong>logs de sécurité Windows</strong> (EventLog). Il ne modifie aucun fichier utilisateur, n'intercepte pas le trafic réseau et ne ralentit pas les postes.</div>
+
+  <h2>2. Ce dont j'ai besoin</h2>
+
+  <h3>2.1 Unité d'Organisation (OU) dédiée</h3>
+  <table>
+    <tr><th>Élément</th><th>Détail</th></tr>
+    <tr><td>Nom de l'OU</td><td><code>OU=SOC_Monitored,OU=Computers,DC=school,DC=local</code> <em>(à adapter)</em></td></tr>
+    <tr><td>Contenu</td><td>Les comptes ordinateur des postes à superviser</td></tr>
+    <tr><td>Pourquoi</td><td>Isoler le périmètre de déploiement (déploiement progressif possible)</td></tr>
+  </table>
+  <div class="info"><strong>Alternative :</strong> Un groupe de sécurité (<code>GRP_SOC_Monitored</code>) filtré via « Security Filtering » sur la GPO convient aussi.</div>
+
+  <h3>2.2 Compte de service</h3>
+  <table>
+    <tr><th>Élément</th><th>Détail</th></tr>
+    <tr><td>Nom</td><td><code>svc_wazuh_deploy</code></td></tr>
+    <tr><td>Type</td><td>Compte de service managé (gMSA) ou compte utilisateur standard</td></tr>
+    <tr><td>Mot de passe</td><td>Ne doit <strong>jamais expirer</strong></td></tr>
+    <tr><td>Groupes</td><td><code>Domain Users</code> uniquement (aucun droit admin)</td></tr>
+    <tr><td>Usage</td><td>Authentification API Wazuh (port 55000) pour enregistrer les postes</td></tr>
+  </table>
+  <div class="info"><strong>Sécurité :</strong> Le mot de passe est chiffré localement via <strong>DPAPI</strong> (Data Protection API). Il n'est <strong>jamais stocké en clair</strong>.</div>
+
+  <h3>2.3 Partage réseau</h3>
+  <table>
+    <tr><th>Élément</th><th>Détail</th></tr>
+    <tr><td>Chemin UNC</td><td><code>\\SRV-FICHIERS\Deploy$\Wazuh\</code> <em>(ou <code>\\NETLOGON\Wazuh\</code>)</em></td></tr>
+    <tr><td>Contenu</td><td><code>Deploy-WazuhAgent.ps1</code> (15 Ko) + <code>wazuh-agent-4.10.4-1.msi</code> (9 Mo)</td></tr>
+  </table>
+  <p><strong>Droits NTFS requis :</strong></p>
+  <table>
+    <tr><th>Principal</th><th>Droit</th><th>Raison</th></tr>
+    <tr><td><code>Domain Admins</code></td><td>Contrôle total</td><td>Administration du partage</td></tr>
+    <tr><td><code>Domain Computers</code></td><td>Lecture + Exécution</td><td>Le script tourne en contexte <code>SYSTEM</code> (identité machine)</td></tr>
+    <tr><td><code>Authenticated Users</code></td><td>Lecture</td><td>Vérification</td></tr>
+  </table>
+
+  <h3>2.4 Création d'une GPO</h3>
+  <table>
+    <tr><th>Élément</th><th>Détail</th></tr>
+    <tr><td>Nom</td><td><code>SEC_DEP_WazuhAgent</code></td></tr>
+    <tr><td>Liaison</td><td>OU <code>SOC_Monitored</code></td></tr>
+    <tr><td>Type</td><td>Configuration ordinateur → Scripts (démarrage) → PowerShell</td></tr>
+    <tr><td>Script</td><td><code>\\SRV-FICHIERS\Deploy$\Wazuh\Deploy-WazuhAgent.ps1</code></td></tr>
+    <tr><td>Option</td><td>Cocher « Exécuter les scripts PowerShell en premier »</td></tr>
+  </table>
+  <p><strong>Paramètres GPO complémentaires :</strong></p>
+  <table>
+    <tr><th>Paramètre</th><th>Valeur</th><th>Raison</th></tr>
+    <tr><td>Délai d'exécution max des scripts</td><td>600 secondes</td><td>Laisser le temps d'attendre le réseau</td></tr>
+    <tr><td>Exécution asynchrone</td><td>Désactivé</td><td>Le script doit terminer avant le logon</td></tr>
+  </table>
+
+  <h3>2.5 Règles de pare-feu (sortantes)</h3>
+  <table>
+    <tr><th>Port</th><th>Proto</th><th>Source</th><th>Destination</th><th>Usage</th></tr>
+    <tr><td><strong>1514</strong></td><td>TCP</td><td>Postes Windows</td><td>100.65.111.9</td><td>Envoi des logs</td></tr>
+    <tr><td><strong>55000</strong></td><td>TCP</td><td>Postes Windows</td><td>100.65.111.9</td><td>API REST (enrôlement)</td></tr>
+  </table>
+
+  <h2>3. Transparence : ce que fait le script</h2>
+  <table>
+    <tr><th>Phase</th><th>Action</th><th>Impact</th></tr>
+    <tr><td>1</td><td>Vérifie le tunnel réseau</td><td>Aucun (lecture seule)</td></tr>
+    <tr><td>2</td><td>Teste la connectivité API</td><td>Aucun (test TCP)</td></tr>
+    <tr><td>3</td><td>Déchiffre le credential DPAPI</td><td>Aucun (lecture mémoire)</td></tr>
+    <tr><td>4</td><td>S'authentifie auprès de l'API Wazuh</td><td>Aucun (appel HTTPS sortant)</td></tr>
+    <tr><td>5</td><td>Enregistre le poste</td><td>Aucun (appel API)</td></tr>
+    <tr><td>6</td><td>Copie le MSI depuis le partage</td><td>≈ 9 Mo dans <code>C:\Wazuh_Deploy\</code></td></tr>
+    <tr><td>7</td><td>Installation silencieuse</td><td>Service <code>WazuhSvc</code> installé</td></tr>
+    <tr><td>8</td><td>Démarrage du service</td><td>Service actif (démarrage automatique)</td></tr>
+  </table>
+  <div class="info"><strong>Idempotence :</strong> Si l'agent est déjà installé, le script ne fait rien et se termine en &lt; 1 seconde.</div>
+
+  <h2>4. Déploiement progressif</h2>
+  <table>
+    <tr><th>Étape</th><th>Périmètre</th><th>Durée</th><th>Validation</th></tr>
+    <tr><td><strong>Pilote</strong></td><td>3 postes de test</td><td>1 semaine</td><td>Pas d'impact sur les performances</td></tr>
+    <tr><td><strong>Extension</strong></td><td>1 salle (≈ 20 postes)</td><td>1 semaine</td><td>Charge OK sur le Manager</td></tr>
+    <tr><td><strong>Production</strong></td><td>Tout le parc (≈ 50-100)</td><td>2 semaines</td><td>Monitoring continu</td></tr>
+  </table>
+  <div class="alert"><strong>Rollback :</strong> En cas de problème, il suffit de <strong>délier la GPO</strong>. Pour désinstaller : <code>msiexec /x wazuh-agent-4.10.4-1.msi /qn</code>.</div>
+
+  <h2>5. Engagement de ma part</h2>
+  <div class="engage">
+    <ul>
+      <li>Le script est <strong>open-source</strong> : code fourni pour revue avant déploiement.</li>
+      <li>Aucune donnée personnelle collectée : uniquement les <strong>logs de sécurité Windows</strong>.</li>
+      <li>Un <strong>guide de passation</strong> sera livré en fin de projet.</li>
+      <li>Le compte de service n'a <strong>aucun privilège AD</strong>.</li>
+      <li><strong>Démonstration en direct</strong> possible si nécessaire.</li>
+    </ul>
+  </div>
+
+  <h2>6. Contact</h2>
+  <table>
+    <tr><th>Info</th><th>Détail</th></tr>
+    <tr><td>Nom</td><td>Corentin</td></tr>
+    <tr><td>Projet</td><td>Stage Master – SOC / SIEM Wazuh</td></tr>
+    <tr><td>Email</td><td><em>(à compléter)</em></td></tr>
+    <tr><td>Téléphone</td><td><em>(à compléter)</em></td></tr>
+    <tr><td>Tuteur de stage</td><td><em>(à compléter)</em></td></tr>
+  </table>
+
+  <p style="margin-top:20px; color: var(--muted); font-style: italic;">Ce déploiement permettra à l'école de disposer d'une supervision de sécurité en temps réel, conforme aux recommandations de l'ANSSI et alignée sur le référentiel CIS.</p>
+</div>
+</div>
+</body>
+</html>

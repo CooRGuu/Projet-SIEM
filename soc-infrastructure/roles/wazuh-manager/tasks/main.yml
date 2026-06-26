@@ -1,9 +1,11 @@
 ---
-- name: Placeholder task for Wazuh manager deployment
-  ansible.builtin.debug:
-    msg: "wazuh-manager role scaffold ready"
+# 0. Installation des certificats de base
+- name: Installer les certificats CA pour la validation SSL/TLS
+  ansible.builtin.apt:
+    name: ca-certificates
+    state: present
+    update_cache: yes
 
----
 # 1. Installation des prérequis de sécurité
 - name: Installer les dépendances APT
   ansible.builtin.apt:
@@ -11,7 +13,7 @@
       - apt-transport-https
       - gnupg
     state: present
-    update_cache: yes
+
 
 # 2. Garantie d'intégrité de la source
 - name: Importer la clé GPG officielle de Wazuh
@@ -44,14 +46,14 @@
     src: ossec.conf.j2
     dest: /var/ossec/etc/ossec.conf
     owner: root
-    group: ossec
+    group: wazuh
     mode: '0640'
   notify: restart wazuh-manager
 
 # 7. Démarrage et activation du service
 - name: S'assurer que le service wazuh-manager est démarré et activé
-  ansible.builtin.systemd:
-    name: wazuh-manager
-    state: started
-    enabled: yes
+  ansible.builtin.command: /var/ossec/bin/wazuh-control start
+  register: wazuh_start
+  changed_when: "'Starting' in wazuh_start.stdout"
+  failed_when: wazuh_start.rc != 0 and 'already running' not in wazuh_start.stdout
 

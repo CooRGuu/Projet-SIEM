@@ -1,4 +1,6 @@
 ---
-- name: Restart wazuh-agent
-  ansible.builtin.debug:
-    msg: "handler scaffold: restart wazuh-agent"
+# Handlers pour le rôle wazuh-agent
+- name: restart wazuh-agent
+  ansible.builtin.command: /var/ossec/bin/wazuh-control restart
+  listen: "restart wazuh-agent"
+

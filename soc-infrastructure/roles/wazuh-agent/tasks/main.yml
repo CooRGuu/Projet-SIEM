@@ -1,4 +1,48 @@
 ---
-- name: Placeholder task for Wazuh agent deployment
-  ansible.builtin.debug:
-    msg: "wazuh-agent role scaffold ready"
+# 1. Installation des prérequis de sécurité
+- name: (Agent) Installer les dépendances APT
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - gnupg
+      - ca-certificates
+    state: present
+    update_cache: yes
+
+# 2. Garantie d'intégrité de la source
+- name: (Agent) Importer la clé GPG officielle de Wazuh
+  ansible.builtin.apt_key:
+    url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+    state: present
+
+# 3. Ajout du dépôt logiciel
+- name: (Agent) Ajouter le dépôt APT Wazuh version 4.x
+  ansible.builtin.apt_repository:
+    repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+    state: present
+    filename: wazuh
+
+# 4. Installation de l'agent Wazuh
+- name: Installer le paquet wazuh-agent
+  ansible.builtin.apt:
+    name: wazuh-agent
+    state: present
+    update_cache: yes
+
+# 5. Déploiement de la configuration
+- name: Déployer la configuration ossec.conf pour l'agent
+  ansible.builtin.template:
+    src: ossec.conf.j2
+    dest: /var/ossec/etc/ossec.conf
+    owner: root
+    group: wazuh
+    mode: '0640'
+  notify: restart wazuh-agent
+
+# 6. Démarrage et activation du service
+- name: S'assurer que le service wazuh-agent est démarré et activé
+  ansible.builtin.systemd:
+    name: wazuh-agent
+    state: started
+    enabled: yes
+    daemon_reload: yes

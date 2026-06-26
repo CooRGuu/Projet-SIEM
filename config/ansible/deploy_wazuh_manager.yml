@@ -1,0 +1,423 @@
+---
+# ============================================================================
+#  PLAYBOOK ANSIBLE : Déploiement Wazuh Manager (Production)
+#  Cible : VM Ubuntu sur ProxFibre (100.65.111.9)
+#  Version : 1.0.0
+#  Date : 2026-06-26
+#  Auteur : Corentin (Projet SOC – Stage Master)
+# ============================================================================
+#
+#  USAGE :
+#    ansible-playbook -i inventory.ini deploy_wazuh_manager.yml --ask-become-pass
+#
+#  PRÉ-REQUIS :
+#    - Accès SSH à la VM cible (clé SSH ou mot de passe)
+#    - Ansible >= 2.14 installé sur la machine de contrôle
+#    - Fichier inventory.ini configuré (voir ci-dessous)
+#
+#  INVENTORY (inventory.ini) :
+#    [wazuh_manager]
+#    100.65.111.9 ansible_user=corentin ansible_ssh_private_key_file=~/.ssh/id_ed25519
+#
+# ============================================================================
+
+- name: "Déploiement complet du Wazuh Manager (Production)"
+  hosts: wazuh_manager
+  become: true
+  vars:
+    # ── Versions ──
+    wazuh_version: "4.10.4"
+    filebeat_version: "7.10.2"
+
+    # ── Réseau ──
+    wazuh_manager_ip: "100.65.111.9"
+    wazuh_api_port: 55000
+    wazuh_agent_port: 1514
+    wazuh_registration_port: 1515
+
+    # ── Chemins ──
+    wazuh_dir: "/var/ossec"
+    wazuh_rules_dir: "{{ wazuh_dir }}/etc/rules"
+    wazuh_config: "{{ wazuh_dir }}/etc/ossec.conf"
+    filebeat_config: "/etc/filebeat/filebeat.yml"
+
+    # ── Comptes ──
+    wazuh_api_user: "svc_enrollment"
+    # Le mot de passe est stocké dans Ansible Vault (vault.yml)
+    # ansible-vault encrypt_string 'MOT_DE_PASSE' --name 'wazuh_api_password'
+    wazuh_api_password: "{{ vault_wazuh_api_password }}"
+
+    # ── Tailscale ──
+    tailscale_authkey: "{{ vault_tailscale_authkey }}"
+
+    # ── Retention ──
+    log_retention_days: 30
+
+  # ── Chargement des secrets Ansible Vault ──
+  vars_files:
+    - vault.yml
+
+  handlers:
+    - name: restart wazuh-manager
+      ansible.builtin.systemd:
+        name: wazuh-manager
+        state: restarted
+        enabled: true
+
+    - name: restart filebeat
+      ansible.builtin.systemd:
+        name: filebeat
+        state: restarted
+        enabled: true
+
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+  tasks:
+    # ================================================================
+    #  PHASE 1 : Préparation du système
+    # ================================================================
+    - name: "[Phase 1] Mise à jour des paquets système"
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        cache_valid_time: 3600
+      tags: [system, update]
+
+    - name: "[Phase 1] Installation des dépendances"
+      ansible.builtin.apt:
+        name:
+          - curl
+          - apt-transport-https
+          - lsb-release
+          - gnupg2
+          - software-properties-common
+          - jq
+          - unzip
+          - ufw
+          - python3-pip
+        state: present
+      tags: [system, deps]
+
+    - name: "[Phase 1] Configuration du hostname"
+      ansible.builtin.hostname:
+        name: "wazuh-manager-prod"
+      tags: [system]
+
+    - name: "[Phase 1] Configuration du fuseau horaire (Europe/Paris)"
+      ansible.builtin.timezone:
+        name: Europe/Paris
+      tags: [system]
+
+    # ================================================================
+    #  PHASE 2 : Installation de Wazuh Manager
+    # ================================================================
+    - name: "[Phase 2] Ajout de la clé GPG Wazuh"
+      ansible.builtin.apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+        state: present
+      tags: [wazuh, install]
+
+    - name: "[Phase 2] Ajout du dépôt Wazuh"
+      ansible.builtin.apt_repository:
+        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        state: present
+        filename: wazuh
+      tags: [wazuh, install]
+
+    - name: "[Phase 2] Installation du Wazuh Manager"
+      ansible.builtin.apt:
+        name: "wazuh-manager={{ wazuh_version }}-1"
+        state: present
+        update_cache: true
+      notify: restart wazuh-manager
+      tags: [wazuh, install]
+
+    - name: "[Phase 2] Activation du service Wazuh Manager"
+      ansible.builtin.systemd:
+        name: wazuh-manager
+        enabled: true
+        state: started
+      tags: [wazuh, install]
+
+    # ================================================================
+    #  PHASE 3 : Configuration ossec.conf
+    # ================================================================
+    - name: "[Phase 3] Configuration de l'écoute réseau (bind 0.0.0.0)"
+      ansible.builtin.lineinfile:
+        path: "{{ wazuh_config }}"
+        regexp: '<address>127\.0\.0\.1</address>'
+        line: '      <address>0.0.0.0</address>'
+        backrefs: true
+      notify: restart wazuh-manager
+      tags: [wazuh, config]
+
+    - name: "[Phase 3] Désactivation de l'auto-enrollment (sécurité)"
+      ansible.builtin.blockinfile:
+        path: "{{ wazuh_config }}"
+        marker: "<!-- {mark} ANSIBLE MANAGED - Auth disabled -->"
+        insertafter: "</remote>"
+        block: |
+          <auth>
+            <disabled>yes</disabled>
+          </auth>
+      notify: restart wazuh-manager
+      tags: [wazuh, config]
+
+    - name: "[Phase 3] Configuration de la rétention des logs ({{ log_retention_days }} jours)"
+      ansible.builtin.lineinfile:
+        path: "{{ wazuh_config }}"
+        regexp: '<maxage>'
+        line: '    <maxage>{{ log_retention_days }}d</maxage>'
+        insertafter: '<logging>'
+        backrefs: false
+      notify: restart wazuh-manager
+      tags: [wazuh, config]
+
+    # ================================================================
+    #  PHASE 4 : Compte de service API (svc_enrollment)
+    # ================================================================
+    - name: "[Phase 4] Création du compte API svc_enrollment"
+      ansible.builtin.uri:
+        url: "https://{{ wazuh_manager_ip }}:{{ wazuh_api_port }}/security/users"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ wazuh_api_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          username: "{{ wazuh_api_user }}"
+          password: "{{ wazuh_api_password }}"
+        validate_certs: false
+        status_code: [200, 400]
+      register: api_user_result
+      changed_when: api_user_result.status == 200
+      tags: [wazuh, api]
+
+    # ================================================================
+    #  PHASE 5 : Règles de détection personnalisées
+    # ================================================================
+    - name: "[Phase 5] Copie des règles personnalisées (local_rules.xml)"
+      ansible.builtin.copy:
+        src: files/custom_wazuh_rules.xml
+        dest: "{{ wazuh_rules_dir }}/local_rules.xml"
+        owner: root
+        group: wazuh
+        mode: "0640"
+      notify: restart wazuh-manager
+      tags: [wazuh, rules]
+
+    # ================================================================
+    #  PHASE 6 : Installation de Filebeat
+    # ================================================================
+    - name: "[Phase 6] Ajout de la clé GPG Elasticsearch"
+      ansible.builtin.apt_key:
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+      tags: [filebeat, install]
+
+    - name: "[Phase 6] Ajout du dépôt Elastic"
+      ansible.builtin.apt_repository:
+        repo: "deb https://artifacts.elastic.co/packages/7.x/apt stable main"
+        state: present
+        filename: elastic-7.x
+      tags: [filebeat, install]
+
+    - name: "[Phase 6] Installation de Filebeat"
+      ansible.builtin.apt:
+        name: "filebeat={{ filebeat_version }}"
+        state: present
+      notify: restart filebeat
+      tags: [filebeat, install]
+
+    - name: "[Phase 6] Configuration de Filebeat pour Wazuh"
+      ansible.builtin.template:
+        src: templates/filebeat.yml.j2
+        dest: "{{ filebeat_config }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart filebeat
+      tags: [filebeat, config]
+
+    - name: "[Phase 6] Téléchargement du module Wazuh pour Filebeat"
+      ansible.builtin.get_url:
+        url: "https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.4.tar.gz"
+        dest: /tmp/wazuh-filebeat-module.tar.gz
+        mode: "0644"
+      tags: [filebeat, config]
+
+    - name: "[Phase 6] Extraction du module Wazuh"
+      ansible.builtin.unarchive:
+        src: /tmp/wazuh-filebeat-module.tar.gz
+        dest: /usr/share/filebeat/module/
+        remote_src: true
+      notify: restart filebeat
+      tags: [filebeat, config]
+
+    # ================================================================
+    #  PHASE 7 : Pare-feu (UFW)
+    # ================================================================
+    - name: "[Phase 7] Politique par défaut : deny incoming"
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+      tags: [firewall]
+
+    - name: "[Phase 7] Autoriser SSH (22/tcp)"
+      community.general.ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+        comment: "SSH Administration"
+      tags: [firewall]
+
+    - name: "[Phase 7] Autoriser Wazuh Agent (1514/tcp)"
+      community.general.ufw:
+        rule: allow
+        port: "{{ wazuh_agent_port | string }}"
+        proto: tcp
+        comment: "Wazuh Agent Communication"
+      tags: [firewall]
+
+    - name: "[Phase 7] Autoriser Wazuh Registration (1515/tcp)"
+      community.general.ufw:
+        rule: allow
+        port: "{{ wazuh_registration_port | string }}"
+        proto: tcp
+        comment: "Wazuh Agent Registration"
+      tags: [firewall]
+
+    - name: "[Phase 7] Autoriser Wazuh API (55000/tcp)"
+      community.general.ufw:
+        rule: allow
+        port: "{{ wazuh_api_port | string }}"
+        proto: tcp
+        comment: "Wazuh REST API"
+      tags: [firewall]
+
+    - name: "[Phase 7] Autoriser Wazuh Dashboard (443/tcp)"
+      community.general.ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+        comment: "Wazuh Dashboard HTTPS"
+      tags: [firewall]
+
+    - name: "[Phase 7] Autoriser Tailscale (41641/udp)"
+      community.general.ufw:
+        rule: allow
+        port: "41641"
+        proto: udp
+        comment: "Tailscale WireGuard"
+      tags: [firewall]
+
+    - name: "[Phase 7] Activer UFW"
+      community.general.ufw:
+        state: enabled
+      tags: [firewall]
+
+    # ================================================================
+    #  PHASE 8 : Tailscale (Overlay Network)
+    # ================================================================
+    - name: "[Phase 8] Installation de Tailscale"
+      ansible.builtin.shell: |
+        curl -fsSL https://tailscale.com/install.sh | sh
+      args:
+        creates: /usr/bin/tailscale
+      tags: [tailscale]
+
+    - name: "[Phase 8] Authentification Tailscale"
+      ansible.builtin.command:
+        cmd: "tailscale up --authkey={{ tailscale_authkey }} --accept-routes"
+      changed_when: true
+      tags: [tailscale]
+
+    # ================================================================
+    #  PHASE 9 : Sauvegarde automatisée (cron)
+    # ================================================================
+    - name: "[Phase 9] Création du script de backup quotidien"
+      ansible.builtin.copy:
+        dest: /usr/local/bin/wazuh-backup.sh
+        mode: "0750"
+        owner: root
+        group: root
+        content: |
+          #!/bin/bash
+          # ── Backup quotidien Wazuh Manager ──
+          BACKUP_DIR="/var/backups/wazuh/$(date +%Y-%m-%d)"
+          mkdir -p "$BACKUP_DIR"
+
+          # Sauvegarde de la configuration
+          cp -a /var/ossec/etc/ "$BACKUP_DIR/etc/"
+
+          # Sauvegarde des règles personnalisées
+          cp -a /var/ossec/etc/rules/ "$BACKUP_DIR/rules/"
+
+          # Sauvegarde de la base agents
+          cp -a /var/ossec/var/db/ "$BACKUP_DIR/db/"
+
+          # Sauvegarde des clés agents
+          cp /var/ossec/etc/client.keys "$BACKUP_DIR/client.keys" 2>/dev/null
+
+          # Compression
+          tar czf "$BACKUP_DIR.tar.gz" -C /var/backups/wazuh "$(date +%Y-%m-%d)"
+          rm -rf "$BACKUP_DIR"
+
+          # Purge des backups > 14 jours
+          find /var/backups/wazuh/ -name "*.tar.gz" -mtime +14 -delete
+
+          logger -t wazuh-backup "Backup terminé : $BACKUP_DIR.tar.gz"
+      tags: [backup]
+
+    - name: "[Phase 9] Planification du backup quotidien (02h00)"
+      ansible.builtin.cron:
+        name: "Wazuh Manager Daily Backup"
+        minute: "0"
+        hour: "2"
+        job: "/usr/local/bin/wazuh-backup.sh"
+        user: root
+      tags: [backup]
+
+    # ================================================================
+    #  PHASE 10 : Vérification finale
+    # ================================================================
+    - name: "[Phase 10] Vérification du service Wazuh Manager"
+      ansible.builtin.systemd:
+        name: wazuh-manager
+        state: started
+      register: wazuh_status
+      tags: [verify]
+
+    - name: "[Phase 10] Vérification du service Filebeat"
+      ansible.builtin.systemd:
+        name: filebeat
+        state: started
+      register: filebeat_status
+      tags: [verify]
+
+    - name: "[Phase 10] Test de l'API Wazuh"
+      ansible.builtin.uri:
+        url: "https://{{ wazuh_manager_ip }}:{{ wazuh_api_port }}/"
+        method: GET
+        validate_certs: false
+        status_code: 200
+      register: api_test
+      tags: [verify]
+
+    - name: "[Phase 10] Résumé du déploiement"
+      ansible.builtin.debug:
+        msg: |
+          ╔══════════════════════════════════════════════╗
+          ║   DÉPLOIEMENT WAZUH MANAGER – TERMINÉ ✅    ║
+          ╠══════════════════════════════════════════════╣
+          ║ Manager  : {{ wazuh_status.status.ActiveState }}
+          ║ Filebeat : {{ filebeat_status.status.ActiveState }}
+          ║ API      : HTTP {{ api_test.status }}
+          ║ IP       : {{ wazuh_manager_ip }}
+          ║ Ports    : 1514, 1515, 55000, 443
+          ║ Backup   : /var/backups/wazuh/ (quotidien 02h)
+          ║ Firewall : UFW actif
+          ╚══════════════════════════════════════════════╝
+      tags: [verify]
