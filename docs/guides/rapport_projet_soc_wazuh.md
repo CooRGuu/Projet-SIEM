@@ -44,9 +44,9 @@
 ## ✍️ Chapitre 1 : Introduction
 
 ### 1.1 Contexte et Objectifs du Projet
-Dans un paysage numérique où les cybermenaces se professionnalisent et s'accélèrent, la capacité de détection précoce des compromissions est devenue un pilier fondamental de la résilience informatique. Ce projet s'inscrit dans cette démarche au sein de notre établissement, avec pour objectif principal la mise en place d'une infrastructure de supervision de sécurité de type **SOC (Security Operations Center)** souveraine, centralisée et industrialisée.
+Dans un paysage numérique où les cybermenaces se professionnalisent et s'accélèrent, la capacité de détection précoce des compromissions est devenue un pilier fondamental de la résilience informatique. Ce projet s'inscrit dans cette démarche au sein de notre établissement, avec pour objectif principal la conception d'un package de déploiement pour une infrastructure de supervision de sécurité de type **SOC (Security Operations Center)** souveraine, centralisée et industrialisée.
 
-L'objectif est d'assurer la visibilité en temps réel sur les événements de sécurité survenant sur le parc informatique de l'école (comprenant les postes de travail des salles de cours, l'administration, ainsi que les serveurs de services) afin de réagir promptement aux incidents d'intrusion ou d'abus de ressources.
+Positionné dans un rôle d'ingénieur/consultant en cybersécurité, ma mission n'est pas d'opérer le déploiement final sur le réseau de production, mais de **livrer une solution "clé en main" (Infrastructure as Code)**. L'objectif est de fournir à l'équipe IT de l'école un kit complet, documenté et sécurisé, leur permettant d'assurer la visibilité en temps réel sur les événements de sécurité de leur parc informatique de manière autonome.
 
 ### 1.2 Problématique de Supervision des Réseaux Académiques
 Les réseaux d'établissements d'enseignement supérieur présentent des défis de sécurité uniques et complexes :
@@ -55,10 +55,10 @@ Les réseaux d'établissements d'enseignement supérieur présentent des défis 
 * **Ressources limitées :** Nécessité d'adopter des solutions open source sans frais de licence récurrents (souveraineté), tout en garantissant des performances de niveau entreprise (*production-grade*).
 
 ### 1.3 Objectifs et Livrables Attendus
-Le projet s'est articulé autour de trois grands axes :
-1. **Infrastructure SIEM :** Déploiement robuste du Manager Wazuh et de la base d'indexation des logs (OpenSearch) sur la plateforme d'hébergement interne **ProxFibre**.
-2. **Déploiement à l'échelle :** Conception d'un mécanisme d'installation automatisé pour les postes Windows via Active Directory (GPO), respectant les meilleures pratiques de sécurité de l'ANSSI.
-3. **Conformité & Détection :** Création de règles de détection spécifiques axées sur les tactiques du MITRE ATT&CK et cartographie de notre conformité vis-à-vis des guides d'hygiène de l'ANSSI et du NIST.
+Le projet s'est articulé autour de la livraison d'un "Kit de Déploiement SOC" comprenant trois grands axes :
+1. **Infrastructure as Code (IaC) :** Conception de playbooks automatisés (Ansible) pour le déploiement robuste du Manager Wazuh et de la base d'indexation des logs (OpenSearch) sur la plateforme d'hébergement interne **ProxFibre**.
+2. **Déploiement à l'échelle (Scripting Sécurisé) :** Développement d'un mécanisme d'installation automatisé pour les postes Windows via Active Directory (GPO) utilisant le chiffrement DPAPI, respectant les meilleures pratiques de sécurité de l'ANSSI.
+3. **Gouvernance & Détection (GRC) :** Création de règles de détection spécifiques axées sur le MITRE ATT&CK, scripts de simulation d'attaques pour validation, manuel de déploiement administrateur, et cartographie de la conformité (EBIOS RM, PCA/PRA, PSSI).
 
 ---
 
