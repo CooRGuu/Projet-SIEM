@@ -11,6 +11,28 @@ Le kit (présent dans ce dépôt Git) contient tous les éléments nécessaires 
 
 ---
 
+## 🔀 Modèles de Déploiement Flexibles
+
+Conscient que l'infrastructure de l'école peut évoluer ou présenter des contraintes spécifiques, ce package a été pensé pour être modulaire. Vous pouvez choisir l'approche qui correspond le mieux à votre contexte technique et organisationnel :
+
+**🎯 Option 1 : Déploiement Centralisé (Recommandé - AD / GPO)**
+* **Cas d'usage :** Parc standardisé, machines membres du domaine Active Directory.
+* **Méthode :** Utilisation des scripts de ce kit (DPAPI + GPO). C'est le mode le plus sécurisé et automatisé. (Détaillé dans les étapes 2 et 3 ci-dessous).
+
+**🛠️ Option 2 : Déploiement Standalone / Manuel**
+* **Cas d'usage :** Maquettage rapide (POC), machines hors domaine (ex: serveurs isolés, postes invités), ou réseau non géré par AD.
+* **Méthode :** Exécution manuelle du script d'installation sur chaque poste. L'agent est déployé à la volée en précisant l'IP du manager.
+
+**☁️ Option 3 : Déploiement via Outil de Gestion de Parc (MDM / Intune / PDQ Deploy)**
+* **Cas d'usage :** L'école utilise déjà une solution MDM (Mobile Device Management) ou un outil de télédistribution.
+* **Méthode :** Le fichier MSI de l'agent Wazuh peut être "packagé" et déployé silencieusement via l'outil tiers, en lui passant les paramètres d'installation en ligne de commande (ex: `WAZUH_MANAGER="10.0.0.50"`).
+
+**🌐 Option 4 : Hébergement Cloud du Manager (SaaS / AWS / Azure)**
+* **Cas d'usage :** L'infrastructure locale ProxFibre n'a pas les ressources nécessaires pour héberger le Manager Wazuh.
+* **Méthode :** Le playbook Ansible (`deploy_wazuh_manager.yml`) peut cibler n'importe quelle instance Ubuntu/Debian hébergée dans le Cloud. Il suffit de modifier l'adresse IP cible dans l'inventaire Ansible.
+
+---
+
 ## 🛠️ Prérequis
 
 Avant de débuter l'installation, assurez-vous de disposer des éléments suivants :
