@@ -40,25 +40,40 @@
 #>
 
 # ============================================================================
-# DIRECTIVES STRICTES
+# DIRECTIVES STRICTES ET PARAMÈTRES
 # ============================================================================
+[CmdletBinding()]
+param(
+    # --- Wazuh Manager ---
+    [Parameter(Mandatory=$false)]
+    [string]$ManagerFQDN = "100.65.111.9",
+
+    [Parameter(Mandatory=$false)]
+    [int]$ManagerAPIPort = 55000,
+
+    [Parameter(Mandatory=$false)]
+    [int]$ManagerCommsPort = 1514,
+
+    # --- Certificat TLS du Manager (Certificate Pinning) ---
+    [Parameter(Mandatory=$false)]
+    [string]$TrustedCertThumbprint = "7E4496D56930C59E9733E85F7359FC5075FA2B4590ADDC8B78F97B3DC8B310FB",
+
+    # --- Paramètres de déploiement agent ---
+    [Parameter(Mandatory=$false)]
+    [string]$AgentGroup = "default"
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ============================================================================
-# CONFIGURATION — ADAPTER CES VALEURS À VOTRE ENVIRONNEMENT
+# CONFIGURATION LOCALE
 # ============================================================================
 
-# --- Wazuh Manager ---
-$WazuhManagerFQDN      = "100.65.111.9"
-$WazuhManagerAPIPort   = 55000
-$WazuhManagerCommsPort = 1514
-
-# --- Certificat TLS du Manager (Certificate Pinning) ---
-# Récupérer le thumbprint SHA-256 du certificat du Manager :
-#   openssl x509 -in /var/ossec/api/configuration/ssl/server.crt -fingerprint -sha256 -noout
-# Puis retirer les ":" pour obtenir la chaîne hexadécimale brute.
-$TrustedCertThumbprint = "7E4496D56930C59E9733E85F7359FC5075FA2B4590ADDC8B78F97B3DC8B310FB"
+# Mapping pour la compatibilité avec le reste du script
+$WazuhManagerFQDN = $ManagerFQDN
+$WazuhManagerAPIPort = $ManagerAPIPort
+$WazuhManagerCommsPort = $ManagerCommsPort
 
 # --- MSI Agent (Staging réseau → fallback local) ---
 # Source réseau centralisée (partage admin sur le DC). Laisser $null si non utilisé.
