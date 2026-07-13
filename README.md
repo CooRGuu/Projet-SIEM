@@ -1,4 +1,4 @@
-﻿# ðŸ›¡ï¸ Projet de DÃ©ploiement d'un SOC avec Wazuh & Ansible
+# ðŸ›¡ï¸ Projet de DÃ©ploiement d'un SOC avec Wazuh & Ansible
 
 Ce dÃ©pÃ´t contient l'infrastructure-as-code (IaC), les scripts de dÃ©ploiement sÃ©curisÃ©s, et l'ensemble de la documentation d'architecture pour le dÃ©ploiement d'un **SOC (Security Operations Center)** basÃ© sur le SIEM **Wazuh** dans un rÃ©seau d'Ã©tablissement d'enseignement.
 
