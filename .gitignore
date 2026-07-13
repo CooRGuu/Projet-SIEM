@@ -1,0 +1,6 @@
+﻿
+# Antigravity Agent files
+.system_generated/
+.tempmediaStorage/
+scratch/
+*.metadata.json

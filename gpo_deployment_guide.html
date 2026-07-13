@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Guide d'Implémentation GPO – Déploiement Wazuh</title>
+<style>
+  :root { --primary: #1a73e8; --accent: #0d47a1; --warn: #e65100; --success: #2e7d32; --bg: #f5f7fa; --card: #fff; --border: #e0e4ea; --text: #222; --muted: #666; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.65; }
+  .page { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+  .card { background: var(--card); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 35px 40px; margin-bottom: 25px; }
+  h1 { font-size: 1.7em; color: var(--accent); border-bottom: 3px solid var(--primary); padding-bottom: 12px; margin-bottom: 20px; }
+  h2 { font-size: 1.25em; color: var(--primary); margin: 28px 0 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: .92em; }
+  th { background: var(--primary); color: #fff; text-align: left; padding: 9px 12px; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: #f8f9fc; }
+  .alert { background: #fff3e0; border-left: 4px solid var(--warn); padding: 12px 16px; border-radius: 5px; margin: 12px 0; font-size: .92em; }
+  .alert strong { color: var(--warn); }
+  .info { background: #e3f2fd; border-left: 4px solid var(--primary); padding: 12px 16px; border-radius: 5px; margin: 12px 0; font-size: .92em; }
+  .success { background: #e8f5e9; border-left: 4px solid var(--success); padding: 12px 16px; border-radius: 5px; margin: 12px 0; font-size: .92em; }
+  ol, ul { margin: 8px 0 8px 22px; }
+  li { margin-bottom: 6px; }
+  code { background: #e8eaed; padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 14px 18px; border-radius: 6px; overflow-x: auto; font-size: .88em; margin: 10px 0; }
+  @media print { body { background: #fff; } .card { box-shadow: none; border: 1px solid #ddd; } }
+</style>
+</head>
+<body>
+<div class="page">
+<div class="card">
+  <h1>📘 Guide d'Implémentation GPO : Déploiement Zero-Touch Wazuh</h1>
+
+  <h2>1. Préparation de l'infrastructure de distribution</h2>
+  <p>Les fichiers de déploiement doivent être hébergés sur un partage réseau sécurisé :</p>
+  <ol>
+    <li>Créer un répertoire : <code>\\SRV-FICHIERS\Deploy\Wazuh\</code></li>
+    <li>Y déposer :
+      <ul>
+        <li><code>Deploy-WazuhAgent.ps1</code></li>
+        <li><code>wazuh-agent-4.10.4-1.msi</code></li>
+      </ul>
+    </li>
+    <li>Appliquer les droits NTFS :</li>
+  </ol>
+  <table>
+    <tr><th>Principal</th><th>Droit</th><th>Raison</th></tr>
+    <tr><td><code>Domain Admins</code></td><td>Contrôle total</td><td>Administration</td></tr>
+    <tr><td><code>Domain Computers</code></td><td>Lecture + Exécution</td><td>Installation par SYSTEM</td></tr>
+    <tr><td><code>Authenticated Users</code></td><td>Lecture</td><td>Vérification</td></tr>
+  </table>
+  <p>Modifier la ligne 17 du script :</p>
+  <pre>$MsiNetworkSource = "\\SRV-FICHIERS\Deploy\Wazuh\wazuh-agent-4.10.4-1.msi"</pre>
+
+  <h2>2. Configuration de la GPO</h2>
+  <ol>
+    <li>Ouvrir <code>gpmc.msc</code> (Gestion de stratégie de groupe).</li>
+    <li>Créer une GPO nommée <code>SEC_DEP_WazuhAgent</code> → lier à l'OU cible.</li>
+    <li>Éditer : <strong>Configuration ordinateur → Stratégies → Paramètres Windows → Scripts (démarrage)</strong>.</li>
+    <li>Double-cliquer <strong>Démarrage</strong> → onglet <strong>Scripts PowerShell</strong>.</li>
+    <li>Ajouter : <code>\\SRV-FICHIERS\Deploy\Wazuh\Deploy-WazuhAgent.ps1</code></li>
+    <li>Sélectionner <strong>« Exécuter les scripts Windows PowerShell en premier »</strong>.</li>
+  </ol>
+  <div class="alert"><strong>⚠ Important :</strong> Assurez-vous que le délai maximal d'exécution des scripts n'est pas inférieur à <strong>600 secondes</strong> (nécessaire pour l'attente du réseau Tailscale).</div>
+
+  <h2>3. Gestion du secret DPAPI</h2>
+
+  <h3>Le défi actuel (contexte Lab)</h3>
+  <p>DPAPI utilise le scope <code>LocalMachine</code>. La clé est <strong>unique au matériel physique</strong> du poste. Le fichier <code>api_credential.bin</code> ne peut pas être copié depuis un serveur AD (le poste cible ne pourrait pas le déchiffrer).</p>
+  <div class="info"><strong>Déploiement Lab :</strong> Un administrateur doit au préalable provisionner le secret localement via <code>Initialize-WazuhDeployCredential.ps1</code> sur chaque poste.</div>
+
+  <h3>Option 3 : Cible de Production (Proxy Kerberos)</h3>
+  <p>Pour un déploiement industriel Zero-Touch sans la contrainte DPAPI :</p>
+  <ol>
+    <li><strong>Retirer les credentials du script GPO.</strong> Le script s'authentifie via l'identité Kerberos de la machine (<code>POSTE01$@DOMAIN.LOCAL</code>).</li>
+    <li><strong>Déployer une API Proxy intermédiaire</strong> (Python Flask / Go) qui :
+      <ul>
+        <li>Reçoit la requête d'enrôlement du poste.</li>
+        <li>Vérifie dans l'AD si la machine est légitime et active.</li>
+        <li>Utilise ses propres credentials administrateurs (cachés côté serveur) pour l'API Wazuh.</li>
+        <li>Renvoie la clé unique chiffrée à l'agent.</li>
+      </ul>
+    </li>
+  </ol>
+
+  <h2>4. Stratégie de mise à jour (Life Cycle)</h2>
+  <div class="success">
+    <p>L'architecture gère nativement l'idempotence et les upgrades :</p>
+    <ol>
+      <li>Déposer le nouveau MSI sur le partage réseau.</li>
+      <li>Mettre à jour <code>$MsiExpectedHash</code> dans le script.</li>
+      <li>Au prochain redémarrage, le script détecte la différence et lance l'upgrade.</li>
+    </ol>
+  </div>
+</div>
+</div>
+</body>
+</html>
