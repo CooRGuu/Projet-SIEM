@@ -67,7 +67,7 @@ Projet-SIEM/
 │   └── roles/
 │       ├── wazuh-agent/
 │       └── wazuh-manager/
-└── wazuh_architecture_diagram_1782299871005.jpg
+└── docs/wazuh_architecture.jpg
 ```
 
 ---
