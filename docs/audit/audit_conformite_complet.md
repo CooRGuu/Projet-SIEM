@@ -1,18 +1,6 @@
 # Audit de conformité réglementaire — Projet SOC Wazuh
 
-> [!IMPORTANT]
-> Ce rapport a été généré en analysant 18 fichiers du projet (rapport, scripts, playbooks Ansible, politiques GRC, règles de détection, registre RGPD, PCA/PRA, etc.)
-
----
-
-## Précision importante : SOC 1 vs SOC 2
-
-Attention à ne pas confondre SOC 1 et SOC 2 :
-- **SOC 1 (SSAE 18)** concerne les contrôles sur les rapports financiers (comptabilité). Ça n'a rien à voir avec un projet SIEM.
-- **SOC 2 Type II** concerne les contrôles de sécurité, disponibilité et confidentialité — c'est celui qui s'applique ici.
-
-> [!TIP]
-> En soutenance, si vous citez « SOC », dites SOC 2 et non SOC 1. Un jury vous corrigera immédiatement si vous confondez les deux.
+Ce rapport couvre l'analyse de conformité du projet par rapport à 7 référentiels de sécurité (ISO 27001, NIS 2, SOC 2, ANSSI, CIS, RGPD, NIST CSF).
 
 ---
 
