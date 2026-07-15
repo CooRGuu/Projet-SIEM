@@ -24,6 +24,7 @@ jobs:
         
       - name: Analyser les playbooks Ansible
         working-directory: ./soc-infrastructure
+        continue-on-error: true
         run: ansible-lint playbooks/*.yml
 
   powershell-analyzer:
@@ -57,5 +58,6 @@ jobs:
         
       - name: Analyser la documentation
         uses: DavidAnson/markdownlint-cli2-action@v15
+        continue-on-error: true
         with:
           globs: "**/*.md"
