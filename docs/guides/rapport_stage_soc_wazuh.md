@@ -3,7 +3,7 @@
 * **Auteur :** Corentin
 * **Cursus :** Master Cybersécurité / Ingénierie Réseaux & Systèmes
 * **Sujet :** Déploiement, durcissement et industrialisation d'un SIEM Wazuh sur un réseau académique (Projet de Fin d'Études)
-* **Encadrant / Correcteur Pédagogique :** [Nom de l'encadrant]
+* **Encadrant / Correcteur Pédagogique :** Ayoub ROUZI
 * **Date :** Juillet 2026
 
 ---
