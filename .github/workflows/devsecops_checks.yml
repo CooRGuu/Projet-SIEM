@@ -1,0 +1,61 @@
+name: DevSecOps Quality & Security Checks
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  ansible-lint:
+    name: "Linter Ansible (ansible-lint)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Installer ansible-lint
+        run: pip install ansible-lint
+        
+      - name: Analyser les playbooks Ansible
+        working-directory: ./soc-infrastructure
+        run: ansible-lint playbooks/*.yml
+
+  powershell-analyzer:
+    name: "Analyse de Sécurité PowerShell (PSScriptAnalyzer)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        
+      - name: Installer PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module -Name PSScriptAnalyzer -Force
+        
+      - name: Analyser les scripts Windows
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path ./scripts/windows -Recurse -Severity Error,Warning
+          if ($results) {
+            $results | Format-Table -AutoSize
+            Write-Error "Des failles de sécurité ou erreurs de syntaxe ont été détectées dans le code PowerShell."
+          } else {
+            Write-Output "Aucune erreur critique détectée. Les scripts PowerShell sont conformes."
+          }
+
+  markdown-lint:
+    name: "Linter Markdown (Conformité GRC)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        
+      - name: Analyser la documentation
+        uses: DavidAnson/markdownlint-cli2-action@v15
+        with:
+          globs: "**/*.md"
