@@ -1,107 +1,92 @@
-# DOCUMENT DE SUIVI DE PROJET : INFRASTRUCTURE SOC HYBRIDE
+# Document de suivi de projet : infrastructure SOC hybride
 
-**Périmètre technique :** Wazuh SIEM (WSL2 Debian) ↔ Windows 11 Host (Agent physique)  
+**Périmètre technique :** Wazuh SIEM (WSL2 Debian) ↔ Windows 11 Host (Agent physique)
 **Méthodologie :** DevSecOps, Infrastructure as Code (Ansible), Durcissement (CIS Benchmarks)
 
 ---
 
-## Phase actuelle : Architecture, Interconnexion et Durcissement
+## Phase actuelle : architecture, interconnexion et durcissement
 
-### 📄 Mise à jour : 19 mai 2026
+### Mise à jour : 19 mai 2026
 
-**1. Objectifs de la Période**
-* Cadrage architectural du projet de centralisation et de supervision des logs.
-* Initialisation de l'environnement de développement et de staging local.
-* Mise en place de la chaîne de déploiement automatisée (IaC) et sécurisation des secrets.
+**1. Objectifs de la période**
 
-**2. Réalisations Techniques & Jalons Validés**
-* **Architecture & Versioning :**
-  * Création du dépôt Git (soc-infrastructure) : Initialisation d'une arborescence modulaire respectant les standards industriels Ansible.
-  * Configuration d'un fichier `.ansible-lint` pour appliquer de manière stricte les bonnes pratiques de développement IaC.
-  * Rédaction d'un fichier `.gitignore` robuste interdisant le commit de fichiers volatils ou critiques (`.vault_pass`).
-* **Gestion des Secrets (SecOps) :**
-  * Mise en œuvre d'Ansible Vault : Isolation stricte des données sensibles. Chiffrement AES-256 du fichier `vault.yml`.
-* **Développement des Rôles de Déploiement (IaC) :**
-  * Écriture du rôle `wazuh-agent` : Création du fichier `main.yml` automatisant le cycle de vie de l'agent.
+On s'est concentrés sur le cadrage architectural du projet, l'initialisation de l'environnement de développement local, et la mise en place de la chaîne de déploiement automatisée avec sécurisation des secrets.
 
-**3. Arbitrages Techniques & Gestion des Risques (Pivots)**
-* **Refus de l'architecture Docker pour les agents :** Analyse technique démontrant l'incompatibilité majeure d'un conteneur pour simuler un agent SOC (absence de Systemd).
-* **Pivot vers le Staging WSL2 (Systemd Enforced) :** Validation d'une infrastructure de staging sous WSL2 Debian ARM64, modification de `wsl.conf` pour activer Systemd en PID 1.
-* **Acceptation de la dette technique réseau :** Sacrifice temporaire du cloisonnement réseau (VLANs) à cause des limites de routage WSL2.
+**2. Réalisations techniques**
+
+Côté architecture et versioning, on a créé le dépôt Git `soc-infrastructure` avec une arborescence modulaire suivant les standards Ansible. Un fichier `.ansible-lint` a été configuré pour appliquer les bonnes pratiques IaC, et le `.gitignore` interdit le commit de fichiers sensibles comme `.vault_pass`.
+
+Pour la gestion des secrets, on a mis en œuvre Ansible Vault avec chiffrement AES-256 du fichier `vault.yml` — isolation stricte des données sensibles.
+
+Le rôle `wazuh-agent` a été écrit (`main.yml`) pour automatiser le cycle de vie de l'agent.
+
+**3. Arbitrages techniques**
+
+On a refusé l'architecture Docker pour les agents après une analyse montrant l'incompatibilité d'un conteneur pour simuler un agent SOC (pas de Systemd). À la place, on a pivoté vers un staging WSL2 Debian ARM64 en modifiant `wsl.conf` pour activer Systemd en PID 1. On a aussi accepté une dette technique réseau temporaire : pas de cloisonnement par VLANs à cause des limites de routage WSL2.
 
 ---
 
-### 📄 Mise à jour : 20 mai 2026
+### Mise à jour : 20 mai 2026
 
-**1. Objectifs de la Période**
-* Déploiement et initialisation du Wazuh Manager via la chaîne IaC Ansible.
-* Résolution des problématiques de routage réseau entre l'hôte physique et WSL2.
-* Enrôlement sécurisé du premier agent Windows.
+**1. Objectifs de la période**
 
-**2. Réalisations Techniques & Jalons Validés**
-* **Infrastructure & Automatisation Backend (WSL2) :**
-  * Disponibilité des services (`wazuh-manager`, `wazuh-authd`, `wazuh-db`, `wazuh-analysisd`).
-  * Validation de l'API (port 55000), Dashboard en statut Active.
-* **Routage Réseau & NAT :**
-  * Ouverture des flux via `netsh interface portproxy` pour les ports 1514 et 1515.
-* **Gestion des Secrets & Sécurisation (SecOps) :**
-  * Génération manuelle d'une clé AES-256 via `agent-auth.exe`.
-* **Résolution du Bind Réseau :**
-  * Modification de `ossec.conf` du Manager pour écouter sur `0.0.0.0` au lieu de `127.0.0.1`.
+Déployer et initialiser le Wazuh Manager via Ansible, résoudre les problèmes de routage réseau WSL2 ↔ hôte, et enrôler le premier agent Windows.
 
-**3. Arbitrages Techniques & Gestion des Risques (Pivots)**
-* **Rupture de protocole Ansible sur l'hôte Windows :** Maintien de l'automatisation stricte pour le backend (WSL2) et déploiement d'un MSI natif durci manuellement pour le poste de travail.
-* **Verrouillage de la configuration de l'agent :** Forçage de `<enrollment><enabled>no</enabled>` pour contrer les requêtes d'authentification parasites.
+**2. Réalisations techniques**
+
+Côté infrastructure, les services sont opérationnels (`wazuh-manager`, `wazuh-authd`, `wazuh-db`, `wazuh-analysisd`). L'API (port 55000) répond, le Dashboard est en statut Active.
+
+Pour le routage, on a ouvert les flux via `netsh interface portproxy` sur les ports 1514 et 1515. La clé AES-256 a été générée manuellement via `agent-auth.exe`. Il a aussi fallu modifier `ossec.conf` du Manager pour écouter sur `0.0.0.0` au lieu de `127.0.0.1` — un problème de bind réseau qui bloquait la communication.
+
+**3. Arbitrages techniques**
+
+On a fait le choix de maintenir l'automatisation Ansible pour le backend WSL2, mais de déployer le MSI natif manuellement sur le poste Windows — Ansible sur un hôte Windows posait trop de problèmes de compatibilité. La configuration de l'agent a été verrouillée avec `<enrollment><enabled>no</enabled>` pour éviter les requêtes d'authentification parasites.
 
 ---
 
-### 📄 Mise à jour : 21 mai 2026
+### Mise à jour : 21 mai 2026
 
-**1. Objectifs de la Période**
-* Clôturer la dette technique sur le pipeline Filebeat ↔ OpenSearch.
-* Déployer le module d'audit de conformité (SCA) face au benchmark CIS.
-* Résoudre les risques de disponibilité (stockage) et de performance (fatigue d'alerte).
+**1. Objectifs de la période**
 
-**2. Réalisations Techniques & Jalons Validés**
-* **Résolution de l'Incident Critique d'Ingestion :**
-  * Injection de `compatibility.override_main_response_version: true` dans OpenSearch.
-  * Plus de 380 événements correctement indexés (`wazuh-alerts-*`).
-* **Cas d'Usage de Détection Opérationnel :**
-  * Simulation d'attaque ciblant la persistance (T1547.001) via l'injection de la clé `EvilCalc`, levant une alerte de niveau 12.
-* **Audit et Durcissement (Gouvernance & GRC) :**
-  * Scan initial CIS Windows 11 Enterprise (Score : 24%).
-  * Cycle de remédiation tactique via PowerShell (Score amélioré à 25%).
+Résoudre la dette technique sur le pipeline Filebeat ↔ OpenSearch, déployer le module d'audit SCA face au benchmark CIS, et traiter les risques de stockage et de fatigue d'alerte.
 
-**3. Traitement Proactif des Risques (Pivots)**
-* **[RISQUE DISPONIBILITÉ] :** Création d'une politique ISM (`wazuh_retention_policy`) avec rétention glissante à 7 jours.
-* **[RISQUE OPÉRATIONNEL] :** Filtrage à la source XPath (`EventID != 4624`) dans `agent.conf` pour réduire la fatigue d'alerte.
+**2. Réalisations techniques**
+
+L'incident critique d'ingestion a été résolu en injectant `compatibility.override_main_response_version: true` dans OpenSearch. Résultat : plus de 380 événements correctement indexés dans `wazuh-alerts-*`.
+
+On a réussi à faire fonctionner un cas de détection opérationnel : simulation d'une attaque de persistance (T1547.001) via l'injection de la clé `EvilCalc`, qui a levé une alerte de niveau 12.
+
+Le scan CIS Windows 11 Enterprise initial a donné un score de 24%. Après un premier cycle de remédiation via PowerShell, on est montés à 25% — c'est peu, mais ça valide le pipeline de remédiation.
+
+**3. Traitement des risques**
+
+Risque de disponibilité : on a créé une politique ISM (`wazuh_retention_policy`) avec rétention glissante à 7 jours.
+Risque opérationnel : filtrage à la source XPath (`EventID != 4624`) dans `agent.conf` pour réduire le bruit.
 
 ---
 
-### 📄 Mise à jour : 23 juin 2026 (Séance Courante)
+### Mise à jour : 23 juin 2026 (séance courante)
 
-**1. Objectifs de la Période**
-* Remplacer l'approche manuelle de déploiement de l'agent Windows par une solution industrielle, robuste et "Zero-Touch", compatible avec un environnement Active Directory (GPO).
-* Sécuriser la gestion des identifiants API (Wazuh) côté endpoint (Windows) pour aligner le niveau d'exigence SecOps avec celui du backend.
+**1. Objectifs de la période**
 
-**2. Réalisations Techniques & Jalons Validés**
-* **Création d'un script de déploiement "Zero-Touch" GPO (PowerShell) :**
-  * *Automatisation intégrale :* Téléchargement centralisé du MSI, installation silencieuse et configuration post-déploiement.
-  * *Sécurité Supply Chain :* Vérification de l'intégrité du binaire MSI via comparaison de hash SHA-256 avant toute exécution.
-  * *Enrôlement API dynamique :* Remplacement de l'utilitaire manuel `agent-auth.exe` par des appels REST authentifiés vers l'API du Manager (port 55000) pour générer, récupérer et injecter la clé de l'agent (gestion des conflits et idempotence).
-  * *Tolérance aux pannes (Race Conditions) :* Implémentation d'une boucle d'attente active validant la disponibilité du tunnel d'overlay (Tailscale/WireGuard) avant l'exécution de la cinématique réseau.
-* **Durcissement Cryptographique de l'Endpoint (SecOps) :**
-  * Fin de l'exposition des mots de passe en clair. Les identifiants du compte de service API (`svc_enrollment`) sont chiffrés via la **Data Protection API (DPAPI)** de Windows (scope `LocalMachine`). 
-  * Mise en place de règles de contrôle d'accès strictes (ACLs NTFS restreintes à `SYSTEM` et `Administrateurs`) sur le binaire chiffré généré.
-* **Traçabilité et Monitoring (SIEM) :**
-  * Création d'une source Windows EventLog dédiée (`WazuhDeploy`) générant des événements locaux pour chaque phase de l'installation, auditables directement depuis le SOC.
+Remplacer l'approche manuelle de déploiement par une solution automatisée compatible Active Directory (GPO), et sécuriser la gestion des identifiants API côté endpoint Windows.
 
-**3. Clôture des Objectifs Précédents**
-* **[Résolu] Priorité Moyenne — GRC :** L'objectif d'*industrialisation de la remédiation* est atteint. La documentation méthodologique a été rédigée, détaillant le paramétrage du "Computer Startup Script" GPO et proposant une conceptualisation cible (Option 3 : API Proxy Kerberos) pour contourner les limites actuelles de DPAPI lors d'un déploiement massif industriel.
+**2. Réalisations techniques**
+
+On a créé un script de déploiement GPO PowerShell avec automatisation complète : téléchargement centralisé du MSI, installation silencieuse, configuration post-déploiement. La vérification d'intégrité SHA-256 du binaire MSI est faite avant toute exécution. L'enrôlement passe maintenant par des appels REST authentifiés vers l'API du Manager (port 55000) au lieu de l'utilitaire `agent-auth.exe`, avec gestion des conflits et idempotence. Une boucle d'attente valide aussi la disponibilité du tunnel Tailscale/WireGuard avant de lancer les appels réseau.
+
+Côté sécurité, les identifiants du compte `svc_enrollment` sont désormais chiffrés via DPAPI (scope `LocalMachine`). Plus de mots de passe en clair. Des ACLs NTFS restreignent l'accès au binaire chiffré à `SYSTEM` et aux administrateurs.
+
+Pour la traçabilité, on a créé une source EventLog dédiée (`WazuhDeploy`) qui génère des événements locaux à chaque étape de l'installation, auditables directement depuis le SOC.
+
+**3. Clôture des objectifs précédents**
+
+L'objectif d'industrialisation de la remédiation est atteint. La documentation méthodologique détaille le paramétrage du « Computer Startup Script » GPO et propose une conceptualisation cible (Option 3 : API Proxy Kerberos) pour contourner les limites de DPAPI lors d'un déploiement massif.
 
 ---
 
-### Prochaines Étapes Immédiates (Sprint Suivant)
+### Prochaines étapes
 
-1. **[Priorité Haute — SecOps] Durcissement avancé du Endpoint :** Poursuivre la réduction de la surface d'attaque du poste de travail pour faire grimper le score SCA en appliquant la politique de verrouillage de compte après échecs successifs (Règle CIS 26005 via `net accounts /lockoutthreshold:5`).
-2. **[Priorité Haute — SOC] Analyse de scénarios d'attaques complexes :** Exécuter les scénarios prévus (brute force SSH, scan Nmap, élévation de privilèges) et développer de nouvelles règles de détection affinées.
+1. **Durcissement avancé du endpoint :** poursuivre la réduction de la surface d'attaque pour améliorer le score SCA — en priorité, la politique de verrouillage de compte après échecs (règle CIS 26005 via `net accounts /lockoutthreshold:5`).
+2. **Scénarios d'attaques complexes :** exécuter les scénarios prévus (brute force SSH, scan Nmap, élévation de privilèges) et développer de nouvelles règles de détection.
