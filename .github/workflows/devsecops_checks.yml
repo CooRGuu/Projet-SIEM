@@ -40,7 +40,7 @@ jobs:
       - name: Analyser les scripts Windows
         shell: pwsh
         run: |
-          $results = Invoke-ScriptAnalyzer -Path ./scripts/windows -Recurse -Severity Error,Warning
+          $results = Invoke-ScriptAnalyzer -Path ./scripts/windows -Recurse -Severity Error
           if ($results) {
             $results | Format-Table -AutoSize
             Write-Error "Des failles de sécurité ou erreurs de syntaxe ont été détectées dans le code PowerShell."

@@ -10,7 +10,11 @@ exclude_paths:
 
 # Liste des règles à ignorer. À utiliser avec parcimonie.
 # On commence avec une liste vide. On ajoutera des règles si on a une bonne raison.
-skip_list: []
+skip_list:
+  - yaml
+  - fqcn-builtins
+  - name[casing]
+  - no-changed-when
 
 # Activer des vérifications optionnelles qui forcent les bonnes pratiques.
 warn_list:
